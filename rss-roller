@@ -63,12 +63,13 @@ makeRSS () {
         read -p "Give a brief description of your website: (e.g A search engine) " description
         read -p "Give the URL to where the rss feed will live: (e.g http://google.com/rssfeed.xml) " rsslink
         read -p "What will be the feed file live on the disk?: (e.g /home/dog/www/rssfeed.xml has to match above) " feedname
-        read -p "Where is the file path for the posts? (leave blank if you are not using auto mode): " postDir
-        echo -e "title=$title\nlink=$link\ndescription='$description'\nrsslink=$rsslink\nfeedname=$feedname\npostDir=$postDir" > ~/.rss-roller.rc
+        read -p "Where is the file path for the posts? (leave blank if you are not using auto mode, e.g /home/dog/www/): " postDir
+        read -p "What files will be ignored during the rss generation? (leave blank if all files will be included in rss feed, e.g index.html sitemap.html): " ignoredPosts
+        echo -e "title='$title'\nlink=$link\ndescription='$description'\nrsslink=$rsslink\nfeedname=$feedname\npostDir=$postDir\nignoredPosts=($ignoredPosts)" > ~/.rss-roller.rc
         echo "please run rss-roller again with the --auto or --manual flags"
         exit
 }
-        
+
 if [[ ! -f ~/.rss-roller.rc ]]; then
         makeRSS
 fi
@@ -87,12 +88,36 @@ if [[ $1 == "--auto" ]]; then
                 rm $feedname
         fi
         touch $feedname
-        postArray=( $(ls -r "$postDir"/*.html) )
-        numPosts=$(ls "$postDir"/*.html | wc -l)
+        postArray=( $(ls -r "$postDir"*.html) )
+	# for i in ${postArray[@]}; do
+	#     echo $i
+	# done
+	for target in "${ignoredPosts[@]}"; do
+	    for i in "${!postArray[@]}"; do
+		if [[ ${postArray[i]} = $postDir$target ]]; then
+		    unset 'postArray[i]'
+		fi
+	    done
+	done
+	# echo ${#postArray[@]}
+	numPosts=$(echo ${#postArray[@]})
         echo "numposts is $numPosts"
         postNum=0
         guidadd=$linkadd
+	echo "" > post-list-with-date
+	echo "" > sorted-post-list-with-date
         for posts in "${postArray[@]}"; do
+                let postNum+=1
+                post=$posts
+                echo "processing post $postNum/$numPosts"
+		# TODO
+		date=$(grep -E '</a><br />[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2} [[:alpha:]]{3} [[:digit:]]{2}:[[:digit:]]{2}' $post)
+		date=$(grep -o '[[:digit:]]\{4\}-[[:digit:]]\{2\}-[[:digit:]]\{2\} [[:alpha:]]\{3\} [[:digit:]]\{2\}:[[:digit:]]\{2\}' <<< $date)
+		echo $post $date >> post-list-with-date
+	done
+	cat post-list-with-date | sort -k 2 -r | cut -d " " -f 1 > sorted-post-list-with-date
+        postNum=0
+	for posts in $(cat sorted-post-list-with-date); do
                 let postNum+=1
                 post=$posts
                 echo "adding post $postNum/$numPosts"
@@ -103,6 +128,8 @@ if [[ $1 == "--auto" ]]; then
                 item $post
         done
         combine
+	rm -rf post-list-with-date
+	rm -rf sorted-post-list-with-date
         exit
 fi
 
