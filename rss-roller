@@ -51,15 +51,30 @@ makeRSS () {
         =============
         """
         read -p "What is your website called?: (e.g Google) " title
-        read -p "What is the link to the website?: (e.g http://google.com) " link
+        read -p "What is the link to the website?: (e.g https://google.com) " link
         read -p "Give a brief description of your website: (e.g A search engine) " description
-        read -p "Give the URL to where the rss feed will live: (e.g http://google.com/rssfeed.xml) " rsslink
+        read -p "Give the URL to where the rss feed will live: (e.g https://google.com/rssfeed.xml) " rsslink
         read -p "What will be the feed file live on the disk?: (e.g /home/dog/www/rssfeed.xml has to match above) " feedname
-        read -p "Where is the file path for the posts? (leave blank if you are not using auto mode, e.g /home/dog/www/): " postDir
+        read -p "Where is the file path for the posts? (e.g /home/dog/www/): " postDir
         read -p "What files will be ignored during the rss generation? (leave blank if all files will be included in rss feed, e.g index.html sitemap.html): " ignoredPosts
-        echo -e "title='$title'\nlink=$link\ndescription='$description'\nrsslink=$rsslink\nfeedname=$feedname\npostDir=$postDir\nignoredPosts=($ignoredPosts)" > ~/.rss-roller.rc
+	read -p "What is your post title selector? (e.g .title): " titleSelector
+	read -p "What is your post timestamp selector? (e.g .timestamp): " timestampSelector
+	read -p "What is your post content selector? (e.g #content): " contentSelector
+        echo -e "title='$title'\nlink=$link\ndescription='$description'\nrsslink=$rsslink\nfeedname=$feedname\npostDir=$postDir\nignoredPosts=($ignoredPosts)\ntitleSelector='$titleSelector'\ntimestampSelector='$timestampSelector'\ncontentSelector='$contentSelector'" > ~/.rss-roller.rc
         echo "please run rss-roller again with the --auto or --manual flags"
         exit
+}
+
+getTitle () {
+    hxselect -c $titleSelector < $1
+}
+
+getTimestamp () {
+    hxselect -c $timestampSelector < $1
+}
+
+getContent () {
+    hxselect -c $contentSelector <$1
 }
 
 if [[ ! -f ~/.rss-roller.rc ]]; then
@@ -103,7 +118,7 @@ if [[ $1 == "--auto" ]]; then
                 post=$posts
                 echo "processing post $postNum/$numPosts"
 		# TODO
-		date=$(grep -E '</a><br />[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2} [[:alpha:]]{3} [[:digit:]]{2}:[[:digit:]]{2}' $post)
+		date=$( getTimestamp $post )
 		date=$(grep -o '[[:digit:]]\{4\}-[[:digit:]]\{2\}-[[:digit:]]\{2\} [[:alpha:]]\{3\} [[:digit:]]\{2\}:[[:digit:]]\{2\}' <<< $date)
 		echo $post $date >> post-list-with-date
 	done
@@ -113,10 +128,10 @@ if [[ $1 == "--auto" ]]; then
                 let postNum+=1
                 post=$posts
                 echo "adding post $postNum/$numPosts"
-                fullTitle=$(grep -o '>.*</h1>' $post | sed 's/\(>\|<\/h1>\)//g')
+		fullTitle=$( getTitle $post )
                 postname=${post##*/}
                 linkadd="$link"/"$postname"
-                extract=$(sed -n '/<p>.*/,/*.<\/p>/{p;q;}' $post | sed -e 's/<[^>]\+>/ /g' -e 's|<p>||g' -e 's|</p>||g' -e 's|"||g')
+		extract=$( getContent $post )
                 item $post
         done
         combine
